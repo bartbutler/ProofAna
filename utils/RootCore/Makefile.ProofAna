@@ -1,0 +1,43 @@
+# RootCore ProofAna makefile wrapper
+
+INCLUDES += -Iutils/RootCore/include
+
+ROOTCORE := $(OUTPUTDIR)/RootCore_compiled.lock
+
+DEPS += $(ROOTCORE)
+CLEANS += RootCoreclean
+EXCLUDES += --exclude RootCore/bin --exclude RootCore/data --exclude RootCore/python \
+	--exclude RootCore/user_scripts --exclude RootCore/Makefile-common \
+    --exclude \*/obj/\* --exclude RootCore/scripts/setup.csh \
+    --exclude RootCore/packages --exclude \*/StandAlone/\*
+
+# use "make binparlib" to include binary libraries in par file to avoid compilation on workers
+# do not use this option on the Grid!
+ifeq (,$(findstring binparlib,$(MAKECMDGOALS)))
+LOADS += TString pwd(gSystem->WorkingDirectory()); gSystem->ChangeDirectory(gSystem->Getenv(\"PROOFANADIR\")); \
+	gSystem->Exec(\"sh utils/RootCore/RootCore_relink.sh\"); \
+	gSystem->CompileMacro(\"utils/RootCore/scripts/load_packages.C\",\"k\"); \
+	gSystem->CompileMacro(\"utils/RootCore/RootCore_load.C\",\"k\"); \
+	RootCore_load(); load_packages(); gSystem->ChangeDirectory(pwd);
+EXCLUDES += --exclude RootCore/include --exclude RootCore/lib --exclude RootCore_compiled.lock \
+	--exclude RootCore/scripts/setup.sh
+else
+LOADS += TString pwd(gSystem->WorkingDirectory()); gSystem->ChangeDirectory(gSystem->Getenv(\"PROOFANADIR\")); \
+	gSystem->Exec(\"olddir=\\\`head -1 utils/RootCore/scripts/setup.sh | awk -F\\\"=\\\" '{print \$$2}'\\\`; \
+	sed -ie \\\"s?\$$olddir?\$$PWD/utils/RootCore?\\\" utils/RootCore/scripts/setup.sh\"); \
+	gSystem->CompileMacro(\"utils/RootCore/scripts/load_packages.C\",\"k\"); \
+	gSystem->CompileMacro(\"utils/RootCore/RootCore_load.C\",\"k\"); \
+	RootCore_load(); load_packages(); gSystem->ChangeDirectory(pwd);
+endif
+
+# Rule to run RootCore compilation
+$(ROOTCORE) : utils # force RootCore recompile when utils changes
+	@echo "Compiling RootCore packages"
+	@sh utils/RootCore/RootCore_compile.sh
+	@echo "compiled" > $(ROOTCORE)
+
+# Cleaning command
+RootCoreclean:
+	@sh utils/RootCore/RootCore_clean.sh
+
+
